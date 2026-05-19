@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Users, FileText, Award, Clock } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Users, Award, Clock } from 'lucide-react';
 import { Toaster } from 'sonner';
 import { LanguageProvider, useLanguage } from './i18n/LanguageContext';
 import Header from './components/Header';
@@ -12,6 +12,7 @@ import AdminLogin from './components/AdminLogin';
 import DepartmentDashboard from './components/DepartmentDashboard';
 import AppealForm from './components/AppealForm';
 import { authenticateDepartment, DepartmentAdmin } from './components/DepartmentAuth';
+import { getAllApplications } from './components/firebaseConfig';
 
 // ─── التحقق من أن فترة الطعون نشطة الآن ────────────────────
 const APPEAL_START = new Date('2026-06-08T00:00:00');
@@ -30,15 +31,37 @@ function AppContent() {
   const [appMode, setAppMode]                               = useState<AppMode>('public');
   const [loggedInAdmin, setLoggedInAdmin]                   = useState<DepartmentAdmin | null>(null);
 
-  const totalSeats = departments.reduce((sum, dept) =>
+  // الإجمالي الأصلي للمقاعد
+  const totalSeatsOriginal = departments.reduce((sum, dept) =>
     sum + dept.specializations.reduce((s, spec) => s + spec.availableSeats, 0), 0
   );
-  const totalApplicants = departments.reduce((sum, dept) =>
-    sum + dept.specializations.reduce((s, spec) => s + spec.applicants, 0), 0
-  );
-  const daysRemaining = Math.floor(
-    (new Date('2026-06-04').getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
-  );
+
+  // الطلبات المقبولة من Firebase
+  const [acceptedCount, setAcceptedCount] = useState(0);
+  const [totalApplicants, setTotalApplicants] = useState(0);
+
+  useEffect(() => {
+    getAllApplications().then(apps => {
+      setTotalApplicants(apps.length);
+      setAcceptedCount(apps.filter(a => a.status === 'accepted').length);
+    }).catch(() => {});
+    const interval = setInterval(() => {
+      getAllApplications().then(apps => {
+        setTotalApplicants(apps.length);
+        setAcceptedCount(apps.filter(a => a.status === 'accepted').length);
+      }).catch(() => {});
+    }, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // المقاعد المتاحة = الإجمالي - المقبولين
+  const totalSeats = Math.max(0, totalSeatsOriginal - acceptedCount);
+
+  // الأيام المتبقية الحقيقية من اليوم حتى 15 جوان 2026
+  const deadline = new Date('2026-06-15T23:59:59');
+  const daysRemaining = Math.max(0, Math.ceil(
+    (deadline.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
+  ));
 
   const handleLogin = (username: string, password: string): DepartmentAdmin | null => {
     const admin = authenticateDepartment(username, password);
@@ -68,9 +91,8 @@ function AppContent() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
         {/* الإحصائيات */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <StatsCard title={t('totalApplicants')}      value={totalApplicants.toString()} icon={Users}    gradient="bg-gradient-to-br from-green-500 to-emerald-600" />
-          <StatsCard title={t('applicationsSubmitted')} value={totalApplicants.toString()} icon={FileText}  gradient="bg-gradient-to-br from-orange-500 to-amber-600" />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <StatsCard title={t('applicationsSubmitted')} value={totalApplicants.toString()} icon={Users}    gradient="bg-gradient-to-br from-orange-500 to-amber-600" />
           <StatsCard title={t('availableSeats')}        value={totalSeats.toString()}       icon={Award}    gradient="bg-gradient-to-br from-blue-500 to-cyan-600" />
           <StatsCard title={t('daysRemaining')}         value={daysRemaining > 0 ? daysRemaining.toString() : '0'} icon={Clock} gradient="bg-gradient-to-br from-purple-500 to-pink-600" />
         </div>
