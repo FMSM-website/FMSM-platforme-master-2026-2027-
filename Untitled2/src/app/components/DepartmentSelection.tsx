@@ -48,7 +48,7 @@ export const departments: Department[] = [
       { name: 'فيزياء الطاقات والطاقات المتجددة', availableSeats: 30, applicants: 0 },
       { name: 'فيزياء الجوية', availableSeats: 25, applicants: 0 },
       { name: 'فيزياء كهروضوئية -مهني-', availableSeats: 25, applicants: 0 },
-
+      { name: 'فيزياء اشعاعية', availableSeats: 30, applicants: 0 },
     ],
   },
   {
